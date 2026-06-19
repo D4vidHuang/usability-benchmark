@@ -84,6 +84,9 @@ done
 usabench serve-check --base-url "$VLLM_BASE_URL" --model "$MODEL" || true
 
 echo "[run] running episodes ..."
+# Fresh measurement: clear any traces/scores from prior submissions so a code or
+# config change (which alters run_ids) cannot leave stale cells to be co-scored.
+rm -rf "$RUNS_ROOT/runs" "$RUNS_ROOT/scores"
 usabench run --config "$RUN_CONFIG" --output-root "$RUNS_ROOT/runs" --no-resume
 
 echo "[score] scoring ..."
