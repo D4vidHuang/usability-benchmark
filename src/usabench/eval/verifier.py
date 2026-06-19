@@ -119,9 +119,14 @@ class FunctionalVerifier:
     # -- grader location + invocation -------------------------------------- #
 
     def _grader_path(self, task: Task) -> Path | None:
-        """Resolve ``<tasks_root>/<task.id>/grader/grade.py`` if it exists."""
+        """Resolve ``<tasks_root>/<task.id>/grader/grade.py`` if it exists.
+
+        Returns an ABSOLUTE path: the grader subprocess runs with the sandbox
+        workspace as ``cwd``, so a relative grader path would resolve against the
+        workspace (where it does not exist) and fail to open.
+        """
         candidate = self.tasks_root / task.id / "grader" / "grade.py"
-        return candidate if candidate.is_file() else None
+        return candidate.resolve() if candidate.is_file() else None
 
     def _run_grader(
         self, grader: Path, artifact: Path, *, cwd: Path
@@ -230,7 +235,7 @@ class FunctionalVerifier:
         rubric_score = round(earned / total_w, 6) if total_w > 0 else 0.0
 
         return VerificationRun(
-            trigger=trigger,  # type: ignore[arg-type]
+            trigger=trigger,
             entrypoint=entrypoint,
             must_have=must_have,
             should_have=should_have,
@@ -282,7 +287,7 @@ class FunctionalVerifier:
             if not (c.is_core or c.is_hard)
         ]
         return VerificationRun(
-            trigger=trigger,  # type: ignore[arg-type]
+            trigger=trigger,
             entrypoint=entrypoint,
             must_have=must_have,
             should_have=should_have,
@@ -307,7 +312,7 @@ class FunctionalVerifier:
             if not (c.is_core or c.is_hard)
         ]
         return VerificationRun(
-            trigger=trigger,  # type: ignore[arg-type]
+            trigger=trigger,
             entrypoint=entrypoint,
             must_have=must_have,
             should_have=should_have,

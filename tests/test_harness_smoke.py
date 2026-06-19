@@ -254,8 +254,8 @@ def test_run_episode_budget_exhaustion(tmp_path: Path) -> None:
 
     assert result.accepted is False
     assert result.status == RunStatus.BUDGET_EXHAUSTED
-    # StrictModel uses use_enum_values=True, so terminated_reason serializes to a str.
-    assert TerminatedReason(result.terminated_reason).is_budget
+    # terminated_reason round-trips as a real TerminatedReason enum (see schema.py).
+    assert result.terminated_reason.is_budget
     # A forced-final verification must still have run so partial credit exists.
     types = [parse_event(json.loads(ln)).type for ln in trace_path.read_text().splitlines() if ln.strip()]
     assert InteractionType.VERIFICATION_RUN.value in [str(t) for t in types]

@@ -374,6 +374,19 @@ class EpisodeEnd(StrictModel):
     invalid: bool = False
     invalid_reason: str | None = None
 
+    @field_validator("terminated_reason")
+    @classmethod
+    def _coerce_terminated_reason(cls, v: Any) -> TerminatedReason:
+        """Restore a real :class:`TerminatedReason` after ``use_enum_values``.
+
+        ``StrictModel`` sets ``use_enum_values=True``, which would otherwise store
+        this field as a bare ``str``. Coercing back to the enum lets callers use
+        ``.is_budget`` (and friends) directly, while ``model_dump(mode="json")``
+        still emits the plain string -- so ``trace.jsonl`` serialization is
+        unchanged. The same contract holds on :class:`RunResult`.
+        """
+        return TerminatedReason(v)
+
 
 class AgentMessage(StrictModel):
     """``agent_message``: agent think-aloud / plan with no side effect."""
@@ -734,6 +747,16 @@ class RunResult(StrictModel):
     status: RunStatus
     terminated_reason: TerminatedReason | None = None
     accepted: bool = False
+
+    @field_validator("terminated_reason")
+    @classmethod
+    def _coerce_terminated_reason(cls, v: Any) -> TerminatedReason | None:
+        """Restore a real :class:`TerminatedReason` after ``use_enum_values``.
+
+        Mirrors :meth:`EpisodeEnd._coerce_terminated_reason` so ``.is_budget`` works
+        directly on a stored result; JSON serialization still round-trips as a str.
+        """
+        return None if v is None else TerminatedReason(v)
     acceptance: AcceptanceResult | None = None
     n_events: int = 0
     wall_clock_s: float = 0.0
