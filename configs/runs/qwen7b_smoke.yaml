@@ -23,7 +23,7 @@ models:
     provider: openai                 # vLLM speaks the OpenAI API
     model: Qwen/Qwen2.5-7B-Instruct  # MUST equal vLLM --served-model-name
     base_url_env: VLLM_BASE_URL
-    api_key_env: VLLM_API_KEY
+    api_key: "EMPTY"            # vLLM runs keyless; OpenAI client just needs a non-empty key
     params:
       temperature: 0.2
       max_tokens: 1536
@@ -39,7 +39,7 @@ oracle:
     provider: openai
     model: Qwen/Qwen2.5-7B-Instruct
     base_url_env: VLLM_BASE_URL
-    api_key_env: VLLM_API_KEY
+    api_key: "EMPTY"            # vLLM runs keyless; OpenAI client just needs a non-empty key
     params: { temperature: 0.3, max_tokens: 768 }
     price_per_mtok: { input: 0.0, output: 0.0 }
     retry: { max_attempts: 4, base_delay_s: 1.5, max_delay_s: 30.0 }

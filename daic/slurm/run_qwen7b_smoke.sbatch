@@ -24,7 +24,9 @@ export PATH="$HOME/.local/bin:$PATH"
 export HF_HOME=/tudelft.net/staff-umbrella/CoReFusion/hf_cache
 export HF_HUB_OFFLINE=1            # use the cached model; never hit the network
 export TRANSFORMERS_OFFLINE=1
-export VLLM_API_KEY=local-dummy    # vLLM ignores the value; the client needs one
+# Run vLLM KEYLESS: do NOT export VLLM_API_KEY (if set, vLLM *requires* that bearer
+# token and the keyless health-check curl below would 401). The harness client
+# carries an inline dummy api_key ("EMPTY") which a keyless server ignores.
 PORT=8765
 export VLLM_BASE_URL="http://127.0.0.1:${PORT}/v1"
 RUNS_ROOT="$PROJ/runs/qwen7b_smoke"
