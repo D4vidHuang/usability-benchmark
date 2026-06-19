@@ -1,0 +1,65 @@
+{
+  "_about": "Frozen gold summary for ub-cal-0007 over env/sample_calendar.ics. Authored clean-room (semantics cross-checked against the reference repos, code copied from none). Produced once by the reference logic in ../grade.py and committed. The grader compares an agent artifact's parsed output against these values within the documented tolerances. Do NOT regenerate casually: any change here is a gold change and must be re-reviewed (docs/tasks.md §8.3 gold reproducibility).",
+  "_fixture": "env/sample_calendar.ics",
+  "_report_timezone": "Europe/Amsterdam",
+  "_analysis_window": {
+    "from": "2026-06-01",
+    "to": "2026-06-22",
+    "note": "Full span of the file; the weekly standup RRULE has COUNT=4 (Jun 1, 8, 15, 22)."
+  },
+  "totals": {
+    "total_scheduled_hours": 7.0,
+    "event_count": 9,
+    "timed_event_count": 8,
+    "allday_event_count": 1,
+    "cancelled_excluded_count": 1
+  },
+  "durations_hours": {
+    "mean": 0.875,
+    "median": 0.5
+  },
+  "meeting_split": {
+    "definition": ">=2 distinct attendees OR has a conferencing URL; else non-meeting",
+    "meeting_count": 7,
+    "meeting_hours": 5.0,
+    "non_meeting_count": 1,
+    "non_meeting_hours": 2.0
+  },
+  "per_weekday_hours": {
+    "Mon": 2.0,
+    "Tue": 0.0,
+    "Wed": 1.5,
+    "Thu": 3.0,
+    "Fri": 0.5,
+    "Sat": 0.0,
+    "Sun": 0.0
+  },
+  "busiest_day": {
+    "weekday": "Thu",
+    "hours": 3.0,
+    "_note": "Depends on correct TZ normalization: the New-York-scheduled review (Wed 20:00 EDT) normalizes to Thu 02:00 CEST. Reading the NY wall clock without normalizing flips the busiest day to Wed."
+  },
+  "tolerances": {
+    "total_scheduled_hours": {"tol_pct": 2.0},
+    "event_count": {"tol_abs": 0},
+    "timed_event_count": {"tol_abs": 0},
+    "allday_event_count": {"tol_abs": 0},
+    "meeting_count": {"tol_abs": 0},
+    "per_weekday_hours": {"tol_abs": 0.05},
+    "mean_hours": {"tol_pct": 5.0},
+    "median_hours": {"tol_pct": 5.0},
+    "busiest_day": {"exact": true}
+  },
+  "_occurrences_for_audit": [
+    {"summary": "Team Standup", "start_ams": "2026-06-01T09:00:00+02:00", "hours": 0.5, "weekday": "Mon", "meeting": true, "source": "RRULE"},
+    {"summary": "Team Standup", "start_ams": "2026-06-08T09:00:00+02:00", "hours": 0.5, "weekday": "Mon", "meeting": true, "source": "RRULE"},
+    {"summary": "Team Standup", "start_ams": "2026-06-15T09:00:00+02:00", "hours": 0.5, "weekday": "Mon", "meeting": true, "source": "RRULE"},
+    {"summary": "Team Standup", "start_ams": "2026-06-22T09:00:00+02:00", "hours": 0.5, "weekday": "Mon", "meeting": true, "source": "RRULE"},
+    {"summary": "Quarterly Review with NY Office", "start_ams": "2026-06-04T02:00:00+02:00", "hours": 1.0, "weekday": "Thu", "meeting": true, "source": "cross-tz"},
+    {"summary": "PTO - Out of Office", "start_ams": "2026-06-05", "hours": 0.0, "weekday": "Fri", "meeting": false, "source": "all-day", "_excluded_from_hours": true},
+    {"summary": "Vendor Sync (cancelled)", "_excluded": "STATUS:CANCELLED"},
+    {"summary": "Project Kickoff", "start_ams": "2026-06-10T13:00:00+02:00", "hours": 1.5, "weekday": "Wed", "meeting": true, "source": "single"},
+    {"summary": "Focus Block - Deep Work", "start_ams": "2026-06-11T10:00:00+02:00", "hours": 2.0, "weekday": "Thu", "meeting": false, "source": "single"},
+    {"summary": "1:1 with Manager", "start_ams": "2026-06-12T16:00:00+02:00", "hours": 0.5, "weekday": "Fri", "meeting": true, "source": "single"}
+  ]
+}

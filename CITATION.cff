@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+title: "usability-benchmark: measuring the human-intervention cost of AI coding agents"
+message: "If you use this benchmark, please cite it using these metadata."
+type: software
+abstract: >-
+  A benchmark for the usability of AI coding agents on open-ended development
+  goals, measured by how much human intervention (clarification, hints, partial
+  solutions, takeover) an agent requires to reach an accepted deliverable. Every
+  metric is a pure offline function of a single canonical, hash-chained
+  trace.jsonl artifact plus the frozen task gold.
+authors:
+  - given-names: David
+    family-names: Huang
+    alias: D4vidHuang
+    affiliation: "Delft University of Technology"
+license: MIT
+version: 0.1.0
+date-released: "2026-06-19"
+url: "https://github.com/D4vidHuang/usability-benchmark"
+repository-code: "https://github.com/D4vidHuang/usability-benchmark"
+keywords:
+  - benchmark
+  - large language models
+  - coding agents
+  - usability
+  - human-in-the-loop
+  - evaluation

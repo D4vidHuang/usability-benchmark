@@ -1,0 +1,277 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4vidHuang/usability-benchmark/schemas/trace.schema.json",
+  "title": "TraceEvent",
+  "description": "One line of the canonical, append-only, totally-ordered, hash-chained trace.jsonl. Mirrors usabench.core.schema.TraceEnvelope. The scorer reads nothing but these lines plus the frozen task gold.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run_id", "event_id", "seq", "ts", "actor", "type", "payload", "prev_hash"],
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0.0"},
+    "run_id": {"type": "string", "minLength": 1},
+    "event_id": {"type": "string", "minLength": 1},
+    "seq": {"type": "integer", "minimum": 0, "description": "Monotonic total-order index; strictly increasing, no gaps."},
+    "ts": {"type": "number", "description": "Epoch seconds wall clock."},
+    "t_turn": {"type": ["integer", "null"], "description": "Agent-turn index; null for harness-internal events."},
+    "actor": {"$ref": "#/$defs/actor"},
+    "type": {"$ref": "#/$defs/interactionType"},
+    "payload": {"$ref": "#/$defs/payload"},
+    "budgets_after": {"$ref": "#/$defs/budgetSnapshot"},
+    "prev_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Chain hash of the previous event (or 64 zeros for genesis)."},
+    "hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$", "description": "Chain hash of this event = sha256(prev_hash || sha256(canonical(event_without_hash)))."}
+  },
+  "allOf": [
+    {"description": "The envelope type must match the payload discriminator.",
+     "properties": {"type": {}, "payload": {}}}
+  ],
+  "$defs": {
+    "actor": {"type": "string", "enum": ["agent", "oracle", "harness", "env"]},
+    "interactionType": {
+      "type": "string",
+      "enum": [
+        "episode_start", "episode_end", "agent_message", "tool_call", "file_edit",
+        "code_run", "message_to_user", "agent_blocked", "handoff_request",
+        "oracle_query", "oracle_response", "checkpoint", "verification_run",
+        "budget_debit", "final_acceptance"
+      ]
+    },
+    "severity": {"type": "integer", "minimum": 0, "maximum": 5},
+    "queryClass": {"type": "string", "enum": ["clarification", "hint_request", "confirmation", "handoff_request", "out_of_scope"]},
+    "verdict": {"type": "string", "enum": ["accept", "reject", "na"]},
+    "terminatedReason": {"type": "string", "enum": ["accept", "budget_turns", "budget_wall", "budget_tokens", "budget_cost", "budget_oracle", "give_up", "oracle_takeover", "error"]},
+    "budgetSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "turns": {"type": "integer", "minimum": 0},
+        "wall_s": {"type": "number", "minimum": 0},
+        "tokens": {"type": "integer", "minimum": 0},
+        "cost_usd": {"type": "number", "minimum": 0},
+        "oracle_queries": {"type": "integer", "minimum": 0}
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "prompt_tokens": {"type": "integer", "minimum": 0},
+        "completion_tokens": {"type": "integer", "minimum": 0},
+        "cost_usd": {"type": "number", "minimum": 0}
+      }
+    },
+    "criterionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {"type": "string"},
+        "passed": {"type": ["boolean", "null"]},
+        "score": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "detail_sha256": {"type": ["string", "null"]},
+        "channel": {"type": ["string", "null"]}
+      }
+    },
+    "payload": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {"type": {"$ref": "#/$defs/interactionType"}},
+      "oneOf": [
+        {"$ref": "#/$defs/p_episode_start"},
+        {"$ref": "#/$defs/p_episode_end"},
+        {"$ref": "#/$defs/p_agent_message"},
+        {"$ref": "#/$defs/p_tool_call"},
+        {"$ref": "#/$defs/p_file_edit"},
+        {"$ref": "#/$defs/p_code_run"},
+        {"$ref": "#/$defs/p_message_to_user"},
+        {"$ref": "#/$defs/p_agent_blocked"},
+        {"$ref": "#/$defs/p_handoff_request"},
+        {"$ref": "#/$defs/p_oracle_query"},
+        {"$ref": "#/$defs/p_oracle_response"},
+        {"$ref": "#/$defs/p_checkpoint"},
+        {"$ref": "#/$defs/p_verification_run"},
+        {"$ref": "#/$defs/p_budget_debit"},
+        {"$ref": "#/$defs/p_final_acceptance"}
+      ]
+    },
+    "p_episode_start": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "task_id", "hidden_spec_sha256"],
+      "properties": {
+        "type": {"const": "episode_start"},
+        "task_id": {"type": "string"},
+        "task_version": {"type": "string"},
+        "hidden_spec_sha256": {"type": "string"},
+        "agent": {"type": "object"},
+        "oracle": {"type": "object"},
+        "budgets": {"type": "object"},
+        "seed": {"type": "integer"},
+        "sandbox": {"type": "object"},
+        "harness_version": {"type": ["string", "null"]},
+        "git_commit": {"type": ["string", "null"]}
+      }
+    },
+    "p_episode_end": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "terminated_reason"],
+      "properties": {
+        "type": {"const": "episode_end"},
+        "terminated_reason": {"$ref": "#/$defs/terminatedReason"},
+        "accepted": {"type": "boolean"},
+        "final_weighted_score": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "interventions_by_severity": {"type": "object", "additionalProperties": {"type": "integer"}},
+        "invalid": {"type": "boolean"},
+        "invalid_reason": {"type": ["string", "null"]}
+      }
+    },
+    "p_agent_message": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "text"],
+      "properties": {
+        "type": {"const": "agent_message"},
+        "text": {"type": "string"},
+        "tokens": {"oneOf": [{"$ref": "#/$defs/usage"}, {"type": "null"}]},
+        "raw_finish_reason": {"type": ["string", "null"]}
+      }
+    },
+    "p_tool_call": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "call_id", "tool"],
+      "properties": {
+        "type": {"const": "tool_call"},
+        "call_id": {"type": "string"},
+        "tool": {"type": "string"},
+        "args": {"type": "object"},
+        "args_sha256": {"type": ["string", "null"]},
+        "batch_id": {"type": ["string", "null"]}
+      }
+    },
+    "p_file_edit": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "path", "op"],
+      "properties": {
+        "type": {"const": "file_edit"},
+        "path": {"type": "string"},
+        "op": {"type": "string", "enum": ["create", "modify", "delete", "rename"]},
+        "pre_sha256": {"type": ["string", "null"]},
+        "post_sha256": {"type": ["string", "null"]},
+        "added": {"type": "integer", "minimum": 0},
+        "removed": {"type": "integer", "minimum": 0},
+        "unified_diff_sha256": {"type": ["string", "null"]},
+        "loc_after": {"type": "integer", "minimum": 0}
+      }
+    },
+    "p_code_run": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"const": "code_run"},
+        "call_id": {"type": ["string", "null"]},
+        "cmd": {"type": "string"},
+        "exit_code": {"type": "integer"},
+        "stdout_sha256": {"type": ["string", "null"]},
+        "stdout_trunc": {"type": ["string", "null"]},
+        "stderr_trunc": {"type": ["string", "null"]},
+        "wall_ms": {"type": "integer", "minimum": 0},
+        "is_test": {"type": "boolean"},
+        "self_test_passed": {"type": ["boolean", "null"]}
+      }
+    },
+    "p_message_to_user": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "text"],
+      "properties": {"type": {"const": "message_to_user"}, "text": {"type": "string"}}
+    },
+    "p_agent_blocked": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"const": "agent_blocked"},
+        "reason": {"type": ["string", "null"]},
+        "blocked": {"type": "boolean"}
+      }
+    },
+    "p_handoff_request": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type"],
+      "properties": {"type": {"const": "handoff_request"}, "reason": {"type": ["string", "null"]}}
+    },
+    "p_oracle_query": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "query_class", "text"],
+      "properties": {
+        "type": {"const": "oracle_query"},
+        "query_class": {"$ref": "#/$defs/queryClass"},
+        "text": {"type": "string"},
+        "context_refs": {"type": "array", "items": {"type": "string"}},
+        "agent_blocked": {"type": "boolean"}
+      }
+    },
+    "p_oracle_response": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "severity"],
+      "properties": {
+        "type": {"const": "oracle_response"},
+        "responds_to": {"type": ["string", "null"]},
+        "severity": {"$ref": "#/$defs/severity"},
+        "severity_rationale": {"type": ["string", "null"]},
+        "text": {"type": "string"},
+        "reveals": {"type": "array", "items": {"type": "string"}},
+        "info_units_revealed": {"type": "array", "items": {"type": "string"}},
+        "verdict": {"$ref": "#/$defs/verdict"},
+        "cited_criteria": {"type": "array", "items": {"type": "string"}},
+        "refusals": {"type": "array", "items": {"type": "string"}},
+        "provenance_tag": {"type": ["string", "null"]},
+        "oracle_tokens": {"oneOf": [{"$ref": "#/$defs/usage"}, {"type": "null"}]},
+        "latency_ms": {"type": "integer", "minimum": 0}
+      }
+    },
+    "p_checkpoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"const": "checkpoint"},
+        "weighted_score": {"type": "number", "minimum": 0, "maximum": 1},
+        "is_working_version": {"type": "boolean"},
+        "criteria_state": {"type": "object"},
+        "criteria_passed": {"type": "integer", "minimum": 0},
+        "criteria_total": {"type": "integer", "minimum": 0}
+      }
+    },
+    "p_verification_run": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"const": "verification_run"},
+        "trigger": {"type": "string", "enum": ["submit", "forced_final"]},
+        "entrypoint": {"type": ["string", "null"]},
+        "must_have": {"type": "array", "items": {"$ref": "#/$defs/criterionResult"}},
+        "should_have": {"type": "array", "items": {"$ref": "#/$defs/criterionResult"}},
+        "all_must_pass": {"type": "boolean"},
+        "rubric_score": {"type": "number", "minimum": 0, "maximum": 1},
+        "wall_ms": {"type": "integer", "minimum": 0},
+        "runner_image_digest": {"type": ["string", "null"]}
+      }
+    },
+    "p_budget_debit": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "kind", "amount"],
+      "properties": {
+        "type": {"const": "budget_debit"},
+        "kind": {"type": "string", "enum": ["token", "cost", "turn", "wall", "oracle_query"]},
+        "amount": {"type": "number"},
+        "reason": {"type": ["string", "null"]}
+      }
+    },
+    "p_final_acceptance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"const": "final_acceptance"},
+        "accepted": {"type": "boolean"},
+        "weighted_score": {"type": "number", "minimum": 0, "maximum": 1},
+        "verdict": {"$ref": "#/$defs/verdict"},
+        "cited_criteria": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

@@ -1,0 +1,63 @@
+# constraints.txt — DOCUMENTED hard bounds, not a generated lockfile.
+#
+# pyproject.toml is the source of truth for dependency *ranges*. This file
+# records the extra, non-obvious upper/lower bounds and environment coupling that
+# a reader (or a human running `uv pip compile`) must know to produce a working
+# lock — especially for the GPU serving stack, which pyproject leaves unpinned on
+# purpose. Do NOT treat these as a frozen lock; regenerate real pins with uv.
+#
+# Apply (best-effort, advisory) with:
+#   uv pip install -e ".[dev]" -c constraints.txt
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# Core runtime (mirrors pyproject [project.dependencies]; pydantic v2 required).
+# ─────────────────────────────────────────────────────────────────────────────
+pydantic>=2.6,<3
+pyyaml>=6,<7
+typer>=0.12,<1
+httpx>=0.27,<1
+tenacity>=8.2,<9
+structlog>=24
+jinja2>=3.1,<4
+jsonschema>=4.21,<5
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [api] — frontier providers. SDKs move fast; keep a floor, leave the ceiling
+# open so security fixes land, but re-lock before any scored run.
+# ─────────────────────────────────────────────────────────────────────────────
+anthropic>=0.40
+openai>=1.40
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [collect] — GitHub ETL. datasketch is imported LAZILY (try/except); the package
+# imports without it.
+# ─────────────────────────────────────────────────────────────────────────────
+gql>=3.5,<4
+python-dateutil>=2.9
+datasketch>=1.6
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [serve] — vLLM serving stack. GPU-ONLY; never imported at module load; never
+# installed in CI. The exact pins are dictated by the DAIC GPU/driver stack and
+# MUST be resolved on the target node, not guessed here.
+#
+#   * Target DAIC GPUs: a40 / l40 / rtx_pro_6000 (Ada/Hopper class).
+#   * CUDA: build against the CUDA 12.9 runtime shipped in the Apptainer image.
+#     torch wheels must match that CUDA minor (cu129-compatible build).
+#   * vLLM <-> torch <-> CUDA form ONE coupled triple. Pin all three together
+#     from a single `uv pip compile --extra serve` run executed ON the GPU node
+#     inside the Apptainer container — do not hand-pin across machines.
+#   * Python 3.11 venv (uv venv --python 3.11); system Python 3.9 on DAIC is too
+#     old and must not be used.
+#
+# Intentionally left unpinned below — resolve on-node:
+# vllm==<resolve-on-DAIC>
+# torch==<resolve-on-DAIC-matching-cu129>
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [dev] — tooling.
+# ─────────────────────────────────────────────────────────────────────────────
+pytest>=8
+pytest-asyncio>=0.23
+ruff>=0.5
+mypy>=1.10

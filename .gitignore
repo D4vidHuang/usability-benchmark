@@ -1,0 +1,49 @@
+# ── Secrets & local env ──────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Run artifacts & caches (regenerated; never committed) ────────────────────
+runs/
+_smoke/
+.cache/
+.llm_cache/
+
+# ── Harvested raw task data (curated tasks ARE committed; raw harvest is not) ─
+tasks/raw/
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.installed.cfg
+*.egg
+
+# ── Virtualenvs ──────────────────────────────────────────────────────────────
+.venv/
+.venv_*/
+venv/
+env/
+
+# ── Tooling caches ───────────────────────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+
+# ── Editors / OS ─────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# ── Generated lockfiles are produced by the human, not by hand here ──────────
+# (constraints.txt IS committed as documented bounds; uv.lock is not.)
+uv.lock

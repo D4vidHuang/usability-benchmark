@@ -1,0 +1,40 @@
+# Pre-commit hooks. Install once with `pre-commit install`.
+# Mirrors the CI gate (ruff + mypy) so failures are caught locally first.
+# vLLM/torch are NEVER installed here; mypy runs against src only.
+minimum_pre_commit_version: "3.5.0"
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.(svg|patch)$'
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        name: ruff (lint + import sort)
+        args: ["--fix"]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.2
+    hooks:
+      - id: mypy
+        # Type-check the library only; tests/collectors are not strict-typed.
+        files: ^src/usabench/
+        additional_dependencies:
+          - pydantic>=2.6
+        # Heavy/optional backends are lazy-imported; ignore_missing_imports is
+        # set in pyproject [tool.mypy], so no stubs for anthropic/openai/vllm.

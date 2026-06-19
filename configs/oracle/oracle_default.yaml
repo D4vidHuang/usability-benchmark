@@ -1,0 +1,69 @@
+# =============================================================================
+# oracle_default.yaml -- the simulated-user ORACLE (holds the gold HiddenSpec).
+#
+# The oracle is ALWAYS an API model and held CONSTANT across the agent grid so
+# the "how much help?" measurement is comparable. It is truthful, bounded,
+# graded, and reproducible (docs/protocol.md §2). Two blocks:
+#
+#   * `client:` -> built by `usabench.llm.factory.build_client` (ModelConfig
+#     shape, channel=oracle). This is the LLM the oracle speaks through.
+#   * the remaining keys -> `usabench.oracle.oracle.OracleConfig` behavior knobs
+#     (persona, hint ladder ceiling, hint budget, stuck-offer rate limit).
+#
+# Decoding temperature is low (0.3) for reproducibility (docs/scoring.md §8); the
+# decoding seed is yoked to the run seed by the harness, so it is left null here.
+# =============================================================================
+
+id: oracle-default
+
+# --- LLM the oracle speaks through (ModelConfig; channel=oracle) -------------
+client:
+  provider: anthropic
+  model: claude-opus-4-8
+  api_key_env: ANTHROPIC_API_KEY
+  params:
+    temperature: 0.3            # low for reproducibility (<=0.3 per scoring.md §8)
+    max_tokens: 1024
+  price_per_mtok:
+    input: 15.0
+    output: 75.0
+  retry:
+    max_attempts: 6
+    base_delay_s: 1.5
+    max_delay_s: 60.0
+  timeout_s: 120.0
+
+# --- OracleConfig behavior knobs (docs/protocol.md §2.5-2.6) ------------------
+# Decoding params mirrored at top level so OracleConfig can read them directly.
+temperature: 0.3
+seed: null                      # null -> harness yokes it to the run seed
+max_tokens: 1024
+
+# Persona archetype: non_expert_user | maintainer. Per-task `hidden.oracle_persona`
+# overrides this when set; this is the grid default.
+persona: non_expert_user
+
+# Escalation preset: strict | standard | lenient. `standard` is the canonical
+# scored configuration (changes escalation thresholds only, never truthfulness).
+helpfulness: standard
+
+# --- Reveal / hint policy (OraclePolicy via PolicyConfig) --------------------
+# Graded hints (L1+) allowed before an extra hint is reclassified as a rescue
+# (so an over-helpful trace is detectable). Mirrors oracle_persona.hint_budget.
+hint_budget: 3
+
+# Hard ceiling on the hint ladder. NEVER L5 (takeover) in automated runs -- L5 is
+# a human fallback only (R4, MAX_AUTO_LEVEL=4). Values >4 are clamped to 4.
+max_level: 4
+
+# Stuck-offer (proactive level-0 nudge) policy and its rate limit.
+proactive_stuck_help: true
+stuck_offer_cooldown_turns: 20
+
+# --- Documentation-only knobs (mirrors of the policy defaults; the running
+# policy reads them from the fields above, not from this block). Kept so the
+# reveal/hint policy is legible in one place. --------------------------------
+reveal_policy:
+  refuse_out_of_scope: true     # R6: out-of-scope asks are refused with "not needed"
+  never_volunteer: true         # R2: gold is never volunteered, only released on ask
+  reject_must_cite_criterion: true  # a reject without a cited hidden_spec id is flagged

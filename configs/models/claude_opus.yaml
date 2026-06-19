@@ -1,0 +1,38 @@
+# =============================================================================
+# claude_opus.yaml -- API frontier model UNDER TEST (the agent-under-test).
+#
+# Consumed by `usabench.llm.factory.build_client` via `ModelConfig`
+# (docs/infra.md §3). Unknown keys are tolerated (extra="ignore"), so the
+# `serving:` block is absent here (API model, nothing to serve).
+#
+# Secrets are NEVER inlined: the key is read from the env var named in
+# `api_key_env` at build time. `config_hash` redacts secret-shaped keys, so the
+# key value never enters a run_id.
+# =============================================================================
+
+id: claude-opus
+provider: anthropic
+model: claude-opus-4-8          # exact Anthropic model id (the SUT)
+api_key_env: ANTHROPIC_API_KEY  # env var holding the key (resolved at build)
+
+# Sampling defaults forwarded as the client's `default_params`. The scaffold may
+# override temperature/max_tokens per its own ScaffoldConfig; these are the
+# provider-level fallbacks.
+params:
+  temperature: 0.7
+  max_tokens: 4096
+
+# Price per 1,000,000 tokens (USD). Feeds `PriceTable` -> `UsageMeter` -> the
+# BudgetMeter cost ceiling and cost-per-progress efficiency metric.
+price_per_mtok:
+  input: 15.0
+  output: 75.0
+
+# Retry/backoff (tenacity). 429 / 5xx / timeout are retried with jitter.
+retry:
+  max_attempts: 6
+  base_delay_s: 1.5
+  max_delay_s: 60.0
+
+# Per-request wall-clock timeout (seconds) handed to the HTTP client.
+timeout_s: 120.0

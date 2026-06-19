@@ -1,0 +1,27 @@
+version: 2
+updates:
+  # Python deps declared in pyproject.toml (PEP 621). Group the patch/minor noise
+  # so we get one PR/week instead of a flood. We never auto-bump the GPU serving
+  # stack here — vllm/torch are pinned on-node against the DAIC CUDA runtime.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      python-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "vllm"
+      - dependency-name: "torch"
+
+  # Keep the CI action SHAs/tags fresh.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3

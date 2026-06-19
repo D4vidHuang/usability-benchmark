@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4vidHuang/usability-benchmark/schemas/raw_harvest.schema.json",
+  "title": "RawHarvestRecord",
+  "description": "One line of raw_harvest.jsonl: the collector's provenance-bearing output for a single public GitHub repo. Stores links + metadata + short attributed excerpts ONLY (never a vendored copy of the code). Mirrors docs/tasks.md §5.5 and docs/infra.md §5.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "harvest_provenance_id", "fetched_at", "owner", "repo", "url",
+    "head_sha", "license_spdx"
+  ],
+  "properties": {
+    "harvest_provenance_id": {"type": "string", "description": "e.g. 'hv-2026-06-19-0312'."},
+    "fetched_at": {"type": "string", "format": "date-time", "description": "ISO-8601 UTC fetch timestamp."},
+
+    "owner": {"type": "string"},
+    "repo": {"type": "string"},
+    "url": {"type": "string", "format": "uri"},
+    "default_branch": {"type": "string"},
+    "head_sha": {"type": "string", "minLength": 7, "description": "Pinned commit SHA at harvest time."},
+
+    "description": {"type": ["string", "null"]},
+    "topics": {"type": "array", "items": {"type": "string"}},
+    "primary_language": {"type": ["string", "null"]},
+    "size_kb": {"type": ["integer", "null"], "minimum": 0},
+    "stars": {"type": "integer", "minimum": 0},
+    "pushed_at": {"type": ["string", "null"], "format": "date-time"},
+    "archived": {"type": "boolean"},
+    "fork": {"type": "boolean"},
+
+    "license_spdx": {"type": "string", "description": "SPDX id, e.g. 'MIT'; 'NOASSERTION' if unknown."},
+    "redistributable": {"type": "boolean", "description": "True if license is in the permissive allowlist."},
+
+    "readme_excerpt": {"type": ["string", "null"], "maxLength": 8192, "description": "First <=4KB of README, stored for drafting under license."},
+    "readme_sha": {"type": ["string", "null"]},
+    "has_tests": {"type": "boolean"},
+    "has_ci": {"type": "boolean"},
+
+    "candidate_issues": {
+      "type": "array",
+      "description": "Enhancement / feature-request / good-first-issue items mined for ambiguity material.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["number", "title"],
+        "properties": {
+          "number": {"type": "integer"},
+          "title": {"type": "string"},
+          "labels": {"type": "array", "items": {"type": "string"}},
+          "url": {"type": ["string", "null"], "format": "uri"},
+          "body_excerpt": {"type": ["string", "null"], "maxLength": 4096}
+        }
+      }
+    },
+
+    "source_list": {"type": ["string", "null"], "description": "Name of the awesome-* list it was discovered via, if any."},
+    "domain_guess": {"type": ["string", "null"]},
+    "tier_size_proxy": {"type": ["string", "null"], "enum": ["T1", "T2", "T3", "T4", null]},
+
+    "dedup_cluster_id": {"type": ["string", "null"]},
+    "dedup_representative": {"type": "boolean"}
+  }
+}

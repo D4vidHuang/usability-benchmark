@@ -1,0 +1,103 @@
+# =============================================================================
+# cluster.yaml -- DAIC execution profile (paths, partitions, GPUs, toolchain).
+#
+# This is the single source of truth the daic/ sbatch + setup scripts read for
+# cluster-specific values. It OVERRIDES docs/infra.md where that doc assumes
+# conda: DAIC has NO working conda/uv/pixi and only system Python 3.9, so the
+# setup installs `uv` and builds a Python 3.11 venv on project storage
+# (FROZEN decision #7). Apptainer 1.5.0 provides the hermetic vLLM container.
+#
+# Secrets are NOT here -- they live in ~/.config/usabench/secrets.env (chmod 600),
+# sourced by load_secrets.sh. Paths use ${VAR:-default} so the file is legible
+# off-cluster too.
+# =============================================================================
+
+id: daic-cluster
+ssh_alias: daic                 # `ssh daic` (login node has internet)
+slurm_version: "25.05"
+
+# --- Storage layout (project storage; home is too small for envs/models/runs) -
+paths:
+  # Project root on shared storage (USABENCH_PROJ).
+  proj: ${USABENCH_PROJ:-/tudelft.net/staff-umbrella/CoReFusion/usabench}
+  # Reuse the EXISTING shared HF cache so models download once across nodes.
+  hf_home: ${HF_HOME:-/tudelft.net/staff-umbrella/CoReFusion/hf_cache}
+  # Derived sub-roots (the sbatch scripts export these from `proj`).
+  data_root: ${USABENCH_DATA_ROOT:-/tudelft.net/staff-umbrella/CoReFusion/usabench/data}
+  runs_root: ${USABENCH_RUNS_ROOT:-/tudelft.net/staff-umbrella/CoReFusion/usabench/runs}
+  cache_root: ${USABENCH_PROJ:-/tudelft.net/staff-umbrella/CoReFusion/usabench}/cache
+  venv: ${USABENCH_PROJ:-/tudelft.net/staff-umbrella/CoReFusion/usabench}/.venv  # uv venv (py3.11)
+  logs: ${USABENCH_PROJ:-/tudelft.net/staff-umbrella/CoReFusion/usabench}/logs
+  apptainer_cache: ${USABENCH_PROJ:-/tudelft.net/staff-umbrella/CoReFusion/usabench}/cache/apptainer
+
+# --- Toolchain (NO conda; uv builds the env on project storage) --------------
+toolchain:
+  system_python: python3.9      # all that exists on DAIC out of the box
+  target_python: "3.11"         # what uv provisions for the venv
+  uv_install: "curl -LsSf https://astral.sh/uv/install.sh | sh"
+  uv_venv_cmd: "uv venv --python 3.11"   # creates `paths.venv` on project storage
+  # Install the package + locked deps into the venv. CPU/login uses [api,collect];
+  # GPU nodes additionally use the serve lock (vllm/torch) -- vLLM is GPU-only and
+  # is NEVER imported on the Mac or login node.
+  pip_install_cpu: "uv pip install -e '.[api,collect]'"
+  pip_install_gpu: "uv pip install -e '.[api,collect,serve]'"
+
+# --- Container runtime (vLLM serving) ----------------------------------------
+apptainer:
+  version: "1.5.0"
+  # Rootless, SLURM-friendly. `--net --network none` is the hermetic default for
+  # the scored agent/verification sandbox; the vLLM serving container needs HF
+  # cache + GPU but no public internet once weights are cached.
+  exec: apptainer
+  vllm_image_env: VLLM_APPTAINER_IMAGE   # path to the prebuilt vLLM .sif
+  bind:                                  # host:container bind mounts
+    - "${HF_HOME:-/tudelft.net/staff-umbrella/CoReFusion/hf_cache}:/hf_cache"
+    - "${USABENCH_PROJ:-/tudelft.net/staff-umbrella/CoReFusion/usabench}:/proj"
+  nv: true                               # --nv to expose GPUs into the container
+
+# --- SLURM partitions (sbatch --partition). `all` is the default. ------------
+partitions:
+  default: all
+  available: [test, all, ewi-insy, ewi-me, ewi-st]
+  # Recommended routing per job kind.
+  collect: all                  # CPU, needs internet (login-adjacent)
+  run_api: all                  # CPU harness vs API models (needs internet for oracle)
+  run_vllm: ewi-insy            # GPU serve + harness co-located
+  serve: ewi-insy               # GPU serve only (split-mode)
+  score: all                    # CPU scoring + leaderboard
+
+# --- GPU types (sbatch --gres=gpu:<type>:<n>). Label may vary on the cluster. -
+gpus:
+  available: [a40, rtx_pro_6000, l40]   # 'nvidia_rtx_pro_6000' label may differ
+  default: a40
+  # Per-model serving GPU request (cross-checked against the model's serving block).
+  qwen_vllm:
+    type: a40
+    count: 2                    # gres=gpu:a40:2 (2-way TP for the 32B model)
+
+# --- Network reality: compute nodes assume restricted -> split-mode ----------
+# Login node has internet (collection + API oracle). Compute nodes assume NO
+# public internet, so the GPU node only SERVES vLLM and the harness+oracle run on
+# the login/CPU node, reading the served endpoint from VLLM_BASE_URL.
+network:
+  login_has_internet: true
+  compute_restricted: true
+  split_mode: true
+  vllm_base_url_env: VLLM_BASE_URL       # endpoint published by the serve job
+  vllm_api_key_env: VLLM_API_KEY         # dummy local key
+  endpoint_file: ${USABENCH_RUNS_ROOT:-/tudelft.net/staff-umbrella/CoReFusion/usabench/runs}/endpoint.txt
+
+# --- Default sbatch resource hints (per job kind; overridable in the sbatch) --
+sbatch_defaults:
+  collect:  {cpus_per_task: 4, mem: "8G",  time: "04:00:00"}
+  run_api:  {cpus_per_task: 4, mem: "8G",  time: "06:00:00"}
+  run_vllm: {cpus_per_task: 8, mem: "64G", time: "08:00:00"}
+  serve:    {cpus_per_task: 8, mem: "64G", time: "08:00:00"}
+  score:    {cpus_per_task: 2, mem: "4G",  time: "01:00:00"}
+
+# --- Environment contract exported by every sbatch (sourced before the run) ---
+env_exports:
+  USABENCH_PROJ: ${USABENCH_PROJ:-/tudelft.net/staff-umbrella/CoReFusion/usabench}
+  USABENCH_DATA_ROOT: ${USABENCH_PROJ:-/tudelft.net/staff-umbrella/CoReFusion/usabench}/data
+  USABENCH_RUNS_ROOT: ${USABENCH_PROJ:-/tudelft.net/staff-umbrella/CoReFusion/usabench}/runs
+  HF_HOME: ${HF_HOME:-/tudelft.net/staff-umbrella/CoReFusion/hf_cache}

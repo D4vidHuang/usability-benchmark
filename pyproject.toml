@@ -1,0 +1,119 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "usability-benchmark"
+version = "0.1.0"
+description = "A benchmark for the usability of AI coding agents on open-ended dev goals, measured by how much human intervention they require."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "D4vidHuang" }]
+keywords = ["benchmark", "llm", "agents", "usability", "evaluation"]
+classifiers = [
+  "Programming Language :: Python :: 3.11",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Intended Audience :: Science/Research",
+]
+
+# Core runtime deps: the package imports cleanly with ONLY these installed.
+# Heavy/optional backends (anthropic, openai, vllm, datasketch) are extras and
+# are imported lazily so `import usabench` never requires them.
+dependencies = [
+  "pydantic>=2.6",
+  "pyyaml>=6",
+  "typer>=0.12",
+  "httpx>=0.27",
+  "tenacity>=8.2",
+  "structlog>=24",
+  "jinja2>=3.1",
+  "jsonschema>=4.21",
+]
+
+[project.optional-dependencies]
+# API frontier models + the simulated-user oracle.
+api = ["anthropic>=0.40", "openai>=1.40"]
+# GitHub ETL collector. datasketch (MinHash dedup) is imported LAZILY behind a
+# try/except so the package imports without it.
+collect = ["gql[httpx]>=3.5", "python-dateutil>=2.9", "datasketch>=1.6"]
+# vLLM serving -- DAIC GPU only; NEVER imported at module import time.
+serve = ["vllm", "torch"]
+# Dev/test/CI.
+dev = [
+  "pytest>=8",
+  "pytest-asyncio>=0.23",
+  "ruff>=0.5",
+  "mypy>=1.10",
+  "jsonschema>=4.21",
+]
+# DAIC full GPU-node install.
+daic = ["usability-benchmark[api,collect,serve]"]
+
+[project.scripts]
+usabench = "usabench.cli:app"
+usabench-collect = "collect.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/D4vidHuang/usability-benchmark"
+Documentation = "https://github.com/D4vidHuang/usability-benchmark/tree/main/docs"
+
+[tool.setuptools]
+# `usabench` is src-layout; `collect`/`drafting`/`qc` are top-level flat packages
+# (kept at repo root so their `__file__.parent.parent / "schemas"` resolution works).
+# Explicit mapping keeps the mixed layout deterministic across setuptools versions.
+package-dir = { "usabench" = "src/usabench" }
+packages = [
+  "usabench",
+  "usabench.core",
+  "usabench.config",
+  "usabench.llm",
+  "usabench.agent",
+  "usabench.agent.adapters",
+  "usabench.oracle",
+  "usabench.harness",
+  "usabench.eval",
+  "usabench.eval.scoring",
+  "usabench.eval.spec",
+  "usabench.report",
+  "collect",
+  "collect.sources",
+  "drafting",
+  "qc",
+]
+
+# Ship the frozen single-source-of-truth spec and any package data with the wheel.
+[tool.setuptools.package-data]
+usabench = ["eval/spec/*.yaml", "py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Typer's API uses function calls (typer.Option/Argument) as parameter defaults
+# by design; B008 is the wrong lint for CLI entrypoints.
+"**/cli.py" = ["B008"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-q --strict-markers"
+markers = [
+  "network: requires external API (skipped in CI)",
+  "gpu: requires a GPU / vLLM (skipped on CPU/CI)",
+  "slow: requires network/API/paid calls or heavy deps (skipped by default in CI)",
+]
+testpaths = ["tests"]
+# Put the repo root on sys.path so `tests.conftest` helpers and the top-level
+# `collect`/`drafting`/`qc` packages import during local/CI test runs.
+pythonpath = ["."]

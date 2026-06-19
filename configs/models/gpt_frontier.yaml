@@ -1,0 +1,30 @@
+# =============================================================================
+# gpt_frontier.yaml -- OpenAI API frontier model UNDER TEST.
+#
+# Same uniform client path as the vLLM model (provider=openai is "OpenAI-shaped",
+# `is_openai_shaped` True): the only thing that distinguishes a hosted OpenAI
+# model from a local vLLM model is `base_url` + the resolved key. Here we point
+# at the public OpenAI endpoint.
+# =============================================================================
+
+id: gpt-frontier
+provider: openai
+model: gpt-frontier-latest        # served model id (replace with the pinned SUT id)
+base_url: https://api.openai.com/v1
+api_key_env: OPENAI_API_KEY
+
+params:
+  temperature: 0.7
+  max_tokens: 4096
+  seed: 7                          # honored where the provider supports it
+
+price_per_mtok:
+  input: 5.0
+  output: 15.0
+
+retry:
+  max_attempts: 6
+  base_delay_s: 1.5
+  max_delay_s: 60.0
+
+timeout_s: 120.0

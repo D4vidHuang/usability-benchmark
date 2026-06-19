@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint-type-test:
+    runs-on: ubuntu-latest
+    env:
+      # CI is hermetic & CPU-only: no provider keys, no network calls in tests.
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install (dev + api + collect; NEVER serve / vllm / torch)
+        run: |
+          python -m pip install -U pip
+          # No GPU stack in CI: install only the CPU-safe extras.
+          pip install -e ".[dev,api,collect]"
+
+      - name: Ruff lint
+        run: python -m ruff check src tests collect drafting qc
+
+      - name: Mypy (strict, library only)
+        run: python -m mypy src
+
+      - name: Pytest (exclude slow / network / gpu)
+        run: python -m pytest -m "not slow and not network and not gpu"
+
+      - name: CLI smoke (import + frozen-spec load, no network)
+        run: |
+          python -c "import usabench; print('usabench', usabench.__version__)"
+          usabench version
+          usabench validate-spec

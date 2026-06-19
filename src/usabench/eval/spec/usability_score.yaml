@@ -1,0 +1,135 @@
+# =============================================================================
+# usability_score.yaml -- THE SINGLE SOURCE OF TRUTH for every scoring constant.
+#
+# Per DESIGN.md (frozen build decision #2 and #3) and docs/scoring.md §9
+# (`bench/spec/usability_score.yaml` is authoritative), NO scoring constant is
+# hardcoded anywhere else in the codebase. Every metric / composite / gate reads
+# its numbers from this file. If you need to tune the benchmark, tune it HERE.
+#
+# The metrics module (docs/metrics.md) and the scoring module (docs/scoring.md)
+# both consume this file; the two composite forms (geometric headline +
+# multiplicative secondary) share the SAME S and AC inputs defined here.
+# =============================================================================
+
+schema_version: "1.0.0"
+
+# -----------------------------------------------------------------------------
+# Assistance-severity scale (docs/metrics.md §3.1 ; DESIGN.md §4).
+# The 0-5 scale is the SAME scale the oracle hint-ladder uses (L0..L5).
+# Convex weights w[s] for s in 0..5: a single sev-5 (25) dominates many sev-1 (1).
+# This list is the canonical convex weight vector for C1_assistance_cost (AC).
+# Index i == severity level i.
+# -----------------------------------------------------------------------------
+severity_weights: [0, 1, 3, 6, 12, 25]
+#                  ^  ^  ^  ^   ^   ^
+#                  |  |  |  |   |   takeover (autonomy void for a criterion)
+#                  |  |  |  |   partial solution (working fragment given)
+#                  |  |  |  directional hint (names concept/pitfall, prose only)
+#                  |  |  substantive spec info (reveals a requirement/constraint)
+#                  |  trivial clarification (restates already-stated info)
+#                  none (acknowledgement only, no task info transferred)
+
+# -----------------------------------------------------------------------------
+# Geometric Usability Score (HEADLINE composite, DESIGN.md §4 / docs/metrics.md §8.2):
+#   USABILITY = ( S^alpha * H^beta )^(1/(alpha+beta)) * E^gamma * R^delta
+#     S = A3_core_criteria_score  (capped success signal; same S the multiplicative form uses)
+#     H = 1 - min(1, AC_rel),  AC_rel = C1 / (kappa * E[C1 over reference panel on this task])
+#     E = 1 / (1 + cost_per_progress / median_cost_per_progress_panel)   (efficiency discount)
+#     R = F1_pass_hat_k at k = pass_k.k                                  (robustness discount)
+# Geometric coupling of S and H forces "succeed AND with little help": either -> 0 kills it.
+# -----------------------------------------------------------------------------
+composite:
+  alpha: 0.55   # exponent on S (core success) in the geometric S/H core
+  beta: 0.45    # exponent on H (assistance-lightness) in the geometric S/H core
+  gamma: 0.20   # exponent on E (efficiency) -- a multiplicative discount, not a core term
+  delta: 0.20   # exponent on R (pass^k robustness) -- a multiplicative discount
+
+# -----------------------------------------------------------------------------
+# Multiplicative Usability variant (SECONDARY, documented; docs/scoring.md §9.2):
+#   U = GA * (1 - lambda * AC) * (1 - fake_done_penalty_if_flagged)
+# Reads the SAME GA(core)=S and the SAME normalized AC as the geometric form.
+# Reported for interpretability/ablation; geometric form is the headline.
+# -----------------------------------------------------------------------------
+multiplicative:
+  lambda: 0.5             # caps the assistance discount at 50% (asking penalized, not forbidden)
+  fake_done_penalty: 0.25 # flat extra haircut when fake_done is flagged (trust-critical failure)
+
+# -----------------------------------------------------------------------------
+# Secondary LINEAR variant (docs/metrics.md §8.2) -- weights over [S, H, A, E, R].
+# Reported for interpretability only; not the headline.
+# -----------------------------------------------------------------------------
+linear:
+  weights: [0.35, 0.30, 0.15, 0.10, 0.10]   # [S, H, A(autonomy), E, R]
+
+# -----------------------------------------------------------------------------
+# UnderAsk anti-gaming penalty (DESIGN.md §4 / docs/metrics.md §8.3):
+#   if success_binary==0 AND n_clarifications==0 AND goal_drift>tau:  H <- H * (1 - rho)
+# You cannot bank the "no help" reward while having built the wrong thing.
+# -----------------------------------------------------------------------------
+under_ask_penalty:
+  rho: 0.5      # fraction by which H is reduced when the under-ask trap fires
+  tau: 0.5      # goal_drift threshold above which a never-ask run is penalized
+
+# -----------------------------------------------------------------------------
+# Goal-Achievement (GA) channel weights and hard-constraint gate
+# (docs/scoring.md §4-5 ; DESIGN.md §5). Per-task overridable, these are defaults.
+#   GA_raw = v1*V1 + v2*V2 + v3*V3        (channel weights sum to 1.0)
+#   GA     = GA_raw * gate(hard_pass_frac),  gate(h) = floor + slope*h
+# -----------------------------------------------------------------------------
+ga_channels:
+  v1: 0.40   # functional / sandbox execution (deterministic, highest trust)
+  v2: 0.35   # frozen rubric / acceptance-criteria checklist
+  v3: 0.25   # LLM-as-judge jury (noisiest -> lowest weight)
+
+# Sub-signal weights inside V1 (docs/scoring.md §3.3):
+#   V1 = v1_install*install_ok + v1_valid*valid_exec + v1_func*func_criteria
+v1_subsignals:
+  install: 0.25
+  valid_exec: 0.25
+  func_criteria: 0.50
+
+gate:
+  floor: 0.30   # h=0 -> GA capped at 0.30*GA_raw (smooth, not a hard zero)
+  slope: 0.70   # h=1 -> gate(1)=1.0, no penalty (floor + slope = 1.0)
+
+# -----------------------------------------------------------------------------
+# Acceptance / success thresholds (docs/scoring.md §7.2 ; docs/metrics.md §0.3).
+# -----------------------------------------------------------------------------
+accept_threshold: 0.80   # weighted_score >= this -> AcceptanceResult.accepted = True
+tau_ga: 0.80             # GA >= this (AND hard_pass_frac==1) -> "success" for pass^k
+
+# -----------------------------------------------------------------------------
+# Assistance normalization (docs/metrics.md §8.1):
+#   AC_rel = C1 / (kappa * E[C1 over reference panel on this task])
+#   H = 1 - min(1, AC_rel)
+# epsilon guards divisions by ~0 (e.g. cost_per_progress when A2 ~ 0).
+# -----------------------------------------------------------------------------
+kappa: 2.0      # AC_rel saturates H to 0 at kappa * panel-average help
+epsilon: 1.0e-6 # numerical floor for max(A2, epsilon) style divisions
+
+# -----------------------------------------------------------------------------
+# Robustness (docs/metrics.md §7.2 / §8.1).
+#   pass^k success def = GA >= tau_ga AND hard_pass_frac == 1.0
+#   R input to the composite is pass^k at k = pass_k.k.
+# -----------------------------------------------------------------------------
+pass_k:
+  k: 2          # k for the pass^k robustness input to the composite
+  n_test: 5     # default reruns/seeds per (agent,task) on the test split
+  n_dev: 3      # default reruns on the dev split (cost-saving)
+
+# -----------------------------------------------------------------------------
+# LLM-judge jury (docs/scoring.md §6.3).
+# -----------------------------------------------------------------------------
+judge:
+  n: 3                  # panel size (J=3 heterogeneous judges; per-item median)
+  position_swap: true   # run each pairwise judgment twice with order swapped
+  alpha_flag: 0.40      # task flagged for human re-annotation if inter-judge alpha < this
+  temperature: 0.2      # judge decoding temperature (low for reproducibility)
+
+# -----------------------------------------------------------------------------
+# Aggregation / statistics (docs/scoring.md §7).
+# -----------------------------------------------------------------------------
+stats:
+  bootstrap_resamples: 10000   # cluster-bootstrap resamples for 95% CIs
+  ci_level: 0.95               # confidence level for reported intervals
+  rank_stability_kendall_tau: 0.90  # min Kendall tau before a ranking claim is published

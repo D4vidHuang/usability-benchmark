@@ -1,0 +1,62 @@
+# =============================================================================
+# qwen_vllm.yaml -- open-weight model UNDER TEST, served by vLLM on DAIC.
+#
+# vLLM exposes an OpenAI-compatible /v1/chat/completions, so provider=openai and
+# the harness uses the SAME code path as a hosted OpenAI model. Only the endpoint
+# differs, and it is resolved from `base_url_env` at build time -- which is what
+# makes this config work BOTH co-located and split-mode (FROZEN decision #7):
+#
+#   * co-located (run_vllm.sbatch): GPU node serves vLLM on localhost; the harness
+#     runs on the same node. VLLM_BASE_URL=http://127.0.0.1:<port>/v1
+#   * split-mode (vllm_serve.sbatch + login/CPU harness): GPU node serves vLLM and
+#     publishes its reachable URL into endpoint.txt; the login node exports
+#     VLLM_BASE_URL=http://<gpu-node>:<port>/v1 before running the harness+oracle.
+#
+# The vLLM server NEVER imports at module load (GPU-only, FROZEN decision #6); the
+# `serving:` block below is read only by the Apptainer/sbatch launcher, never by
+# `usabench.llm.factory` (which ignores unknown keys).
+# =============================================================================
+
+id: qwen-vllm
+provider: openai                          # OpenAI-shaped -> same client path
+model: Qwen/Qwen2.5-Coder-32B-Instruct    # MUST match vLLM --served-model-name
+base_url_env: VLLM_BASE_URL               # written by the serve sbatch into the env
+api_key_env: VLLM_API_KEY                 # dummy local key (vLLM ignores it)
+
+params:
+  temperature: 0.7
+  max_tokens: 4096
+  seed: 7
+
+# Local inference: no per-token $ price. Cost is tracked as GPU wall-time (SLURM
+# --time), not dollars; zeros here keep the cost ceiling from ever firing.
+price_per_mtok:
+  input: 0.0
+  output: 0.0
+
+retry:
+  max_attempts: 4
+  base_delay_s: 2.0
+  max_delay_s: 30.0
+
+timeout_s: 180.0                          # local models can be slower to first token
+
+# ----------------------------------------------------------------------------
+# `serving:` -- consumed ONLY by the Apptainer/vLLM launcher (daic/slurm/*.sbatch
+# + configs/daic/cluster.yaml). Ignored by the LLM factory.
+# ----------------------------------------------------------------------------
+serving:
+  hf_model: Qwen/Qwen2.5-Coder-32B-Instruct  # HF repo id, downloaded once into HF_HOME
+  served_model_name: Qwen/Qwen2.5-Coder-32B-Instruct  # must equal `model` above
+  tensor_parallel_size: 2                  # 2-way TP (e.g. 2x a40 for a 32B model)
+  max_model_len: 16384
+  dtype: bfloat16
+  gpu_memory_utilization: 0.90
+  trust_remote_code: false
+  host: 127.0.0.1                          # bind localhost; split-mode publishes the node URL
+  port: 8000                               # the sbatch may randomize; recorded into endpoint.txt
+  api_key_env: VLLM_API_KEY                # served key (dummy)
+  base_url_env: VLLM_BASE_URL              # where the harness reads the endpoint from
+  # GPU request hints for the SLURM launcher (cross-checked against cluster.yaml).
+  gpu_type: a40                            # one of a40 | rtx_pro_6000 | l40
+  num_gpus: 2

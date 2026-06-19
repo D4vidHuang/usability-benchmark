@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/D4vidHuang/usability-benchmark/schemas/task.schema.json",
+  "title": "Task",
+  "description": "One benchmark task record. Partitioned into an agent-visible surface and an oracle-private 'hidden' object. Mirrors usabench.core.schema.Task. The 'hidden' object is NEVER shown to the agent (docs/tasks.md §2.1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "user_goal", "domain", "difficulty", "deliverable_type", "hidden"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9\\-]*$", "description": "Stable slug, e.g. 'ub-cal-0007'."},
+    "schema_version": {"type": "string"},
+    "title": {"type": "string"},
+
+    "user_goal": {"type": "string", "description": "AGENT-VISIBLE: the under-specified, lay-phrased goal."},
+    "user_goal_persona_note": {"type": ["string", "null"]},
+    "domain": {"type": "string", "enum": ["cli-util", "data-analysis", "web-dashboard", "api-integration", "automation", "dev-tooling"]},
+    "difficulty": {"type": "string", "enum": ["T1", "T2", "T3", "T4"]},
+    "deliverable_type": {"type": "string", "enum": ["cli-tool", "script", "web-app", "library", "notebook", "service"]},
+    "required_capabilities": {"type": "array", "items": {"type": "string"}},
+    "accept_threshold": {"type": "number", "minimum": 0, "maximum": 1},
+    "contamination_label": {"type": ["string", "null"], "enum": ["low", "medium", "high", null]},
+    "harvest_provenance_id": {"type": ["string", "null"]},
+
+    "reference_repos": {
+      "type": "array",
+      "description": "ORACLE-PRIVATE detail: real OSS repos grounding the gold.",
+      "items": {"$ref": "#/$defs/referenceRepo"}
+    },
+
+    "env": {"$ref": "#/$defs/taskEnv"},
+
+    "expected_interventions": {"type": ["object", "null"], "description": "Calibration targets from pilot runs."},
+
+    "hidden": {"$ref": "#/$defs/hiddenSpec"}
+  },
+  "$defs": {
+    "referenceRepo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "commit", "license"],
+      "properties": {
+        "url": {"type": "string"},
+        "commit": {"type": "string", "minLength": 7, "description": "Pinned SHA; no floating refs."},
+        "license": {"type": "string"},
+        "role": {"type": "string", "enum": ["primary", "secondary", "inspiration"]},
+        "why": {"type": ["string", "null"]}
+      }
+    },
+    "taskEnv": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dockerfile": {"type": ["string", "null"]},
+        "base_image": {"type": "string"},
+        "network": {"type": "string", "enum": ["deny", "allowlist", "mocked"]},
+        "allowlist": {"type": "array", "items": {"type": "string"}},
+        "fixtures": {"type": "array", "items": {"type": "string"}},
+        "allowed_reqs": {"type": "array", "items": {"type": "string"}},
+        "setup": {"type": "array", "items": {"type": "string"}},
+        "entrypoint_hint": {"type": ["string", "null"]}
+      }
+    },
+    "acceptanceCriterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "text", "check_kind"],
+      "properties": {
+        "id": {"type": "string"},
+        "text": {"type": "string"},
+        "weight": {"type": "number", "minimum": 0},
+        "is_core": {"type": "boolean"},
+        "is_hard": {"type": "boolean"},
+        "check_kind": {"type": "string", "enum": ["func", "rubric_auto", "oracle_judgment"]},
+        "check_ref": {"type": ["string", "null"]},
+        "source": {"type": ["string", "null"]}
+      }
+    },
+    "ambiguityPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "question", "gold"],
+      "properties": {
+        "id": {"type": "string"},
+        "question": {"type": "string"},
+        "gold": {"type": "string"},
+        "reveal": {"type": "string", "enum": ["on_ask", "on_hint", "never_volunteer"]},
+        "severity": {"type": "string", "enum": ["low", "medium", "high"]}
+      }
+    },
+    "infoUnit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "class", "desc"],
+      "properties": {
+        "id": {"type": "string"},
+        "class": {"type": "string", "enum": ["requirement", "constraint", "preference"]},
+        "desc": {"type": "string"}
+      }
+    },
+    "hiddenSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary"],
+      "description": "ORACLE-PRIVATE gold knowledge. Loaded only by grader + oracle.",
+      "properties": {
+        "summary": {"type": "string"},
+        "acceptance_criteria": {"type": "array", "items": {"$ref": "#/$defs/acceptanceCriterion"}},
+        "ambiguity_points": {"type": "array", "items": {"$ref": "#/$defs/ambiguityPoint"}},
+        "info_units": {"type": "array", "items": {"$ref": "#/$defs/infoUnit"}},
+        "reveal_rules": {"type": "object", "additionalProperties": {"type": "string"}},
+        "oracle_persona": {"type": "string"},
+        "known_pitfalls": {"type": "array", "items": {"type": "string"}},
+        "out_of_scope": {"type": "array", "items": {"type": "string"}},
+        "constraints": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

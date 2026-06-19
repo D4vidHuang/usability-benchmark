@@ -1,0 +1,44 @@
+# Harvest configuration for `usabench-collect run` (docs/tasks.md §5.1, §10).
+#
+# The seed matrix drives topic/stars discovery (sharded past the 1000-result
+# search cap); `domains` drives awesome-list discovery. `gates` are the harvest-
+# time quality/license/activity filters. Tune freely -- these are the documented
+# defaults (docs/tasks.md §11 leaves exact thresholds to the team).
+
+# Recency cutoff (also a contamination mitigation, §9.4). Bias toward repos
+# pushed after this date so reference material post-dates common training cutoffs.
+pushed_after: "2024-12-01"
+
+# Optional global cap on repos discovered per run (null = uncapped).
+max_repos: null
+
+# Topic/language/domain seed matrix for the `topics` source. One row per
+# (domain, topic, language) cell. `extra` is any raw search qualifier fragment.
+seeds:
+  - {domain: "cli-util",        topic: "cli",            language: "python"}
+  - {domain: "cli-util",        topic: "command-line",   language: "go"}
+  - {domain: "data-analysis",   topic: "ics-files",      language: "python"}
+  - {domain: "data-analysis",   topic: "data-analysis",  language: "python"}
+  - {domain: "web-dashboard",   topic: "fastapi",        language: "python"}
+  - {domain: "web-dashboard",   topic: "dashboard",      language: "python"}
+  - {domain: "api-integration", topic: "api-client",     language: "python"}
+  - {domain: "automation",      topic: "automation",     language: "python"}
+  - {domain: "dev-tooling",     topic: "developer-tools", language: "python"}
+
+# Domain keywords for `awesome-*` list discovery.
+domains:
+  - "cli"
+  - "python"
+  - "selfhosted"
+  - "fastapi"
+
+# Harvest-time quality / license / activity gates (collect/filters.GateConfig).
+gates:
+  min_stars: 50
+  max_age_months: 18
+  allow_archived: false
+  allow_forks: false
+  min_size_kb: 5
+  max_size_kb: 200000
+  require_redistributable: true   # permissive SPDX allowlist (MIT/Apache/BSD/ISC/Unlicense/MPL)
+  require_description: true

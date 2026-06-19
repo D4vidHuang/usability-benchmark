@@ -1,0 +1,44 @@
+# =============================================================================
+# scaffold_default.yaml -- the reference ReAct agent-under-test wrapper.
+#
+# Drives the model-under-test in a Reason+Act loop, emitting exactly ONE
+# AgentAction per step (the one-action-per-step contract, docs/protocol.md §1.2).
+# Maps onto `usabench.agent.scaffold.ScaffoldConfig` (max_steps, temperature,
+# max_tokens, native_tools, system_prompt) + harness sandbox limits. Decoding
+# params here override the model config's `params` for the SUT.
+# =============================================================================
+
+id: scaffold-default
+type: raw_scaffold              # the default, no-external-dependency scaffold
+
+# --- ScaffoldConfig (loop + decoding) ----------------------------------------
+max_steps: 40                   # hard safety net on emitted actions (budgets also cap)
+temperature: 0.7                # SUT sampling temperature
+max_tokens: 4096                # max completion tokens per model call
+native_tools: true              # prefer native function-calling; fall back to text ReAct
+system_prompt: null             # null -> use the frozen DEFAULT_SYSTEM_PROMPT
+
+# --- Tool vocabulary exposed to the agent ------------------------------------
+# Every ask_user/message_user routes through the InteractionBus to the oracle;
+# write_file/read_file/run_cmd act on the sandbox workspace.
+tools:
+  - write_file
+  - read_file
+  - run_cmd
+  - ask_user
+  - message_user
+
+# CRITICAL (the measurement axis): every ask_user is a COUNTED interaction routed
+# to the oracle. This must stay true or the assistance-cost metric is blind.
+ask_user_is_interaction: true
+
+# --- Sandbox limits (harness sandbox backend) --------------------------------
+# Scored runs are hermetic: network defaults to deny with a per-task allowlist
+# (FROZEN decision #5). `backend: local` -> LocalSubprocessSandbox on the Mac;
+# the DAIC launcher swaps in the Apptainer backend for hermetic container runs.
+sandbox:
+  backend: local                # local | apptainer (DAIC) | docker
+  network: deny                 # hermetic default; per-task TaskEnv.allowlist may widen
+  wall_clock_s: 1800            # per-episode workspace wall-clock ceiling
+  max_cmd_s: 120                # per-command timeout for run_cmd
+  max_output_bytes: 1048576     # truncate captured stdout/stderr beyond 1 MiB

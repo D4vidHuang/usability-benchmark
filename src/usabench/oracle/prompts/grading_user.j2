@@ -1,0 +1,71 @@
+{# ===========================================================================
+   Oracle-as-judge submission-review template (docs/protocol.md §2.7,
+   docs/scoring.md). Used by SimulatedUserOracle.review(): given the deterministic
+   verifier report, the oracle decides accept/reject ON INTENT only.
+
+   The oracle MAY:
+     - accept iff all must_have checks pass AND behavior matches the intent;
+     - reject with NAMED, non-leaking feedback citing a hidden_spec id;
+   The oracle MAY NOT invent new requirements (prevents goalpost-moving). A reject
+   MUST cite at least one criterion id from the lists below.
+
+   Context variables (supplied by oracle.py):
+     persona_type   : "non_expert_user" | "maintainer"
+     intent         : hidden_spec.summary
+     must_haves     : list of {id, text}
+     soft_prefs     : list of {id, text}     (ambiguity points / preferences)
+     all_must_pass  : bool
+     entrypoint     : str | None
+     must_results   : list of {id, passed}
+     should_results : list of {id, score}
+     rubric_score   : float
+=========================================================================== #}
+You are still the {{ persona_type }} from before. The agent says it is done and
+has shown you the program running. Decide whether to ACCEPT it, judging ONLY by
+whether it does what you wanted -- not by reading the code.
+
+WHAT YOU WANTED:
+  Intent: {{ intent }}
+  Must-haves (these MUST all work for you to accept):
+{% for mh in must_haves %}    - [{{ mh.id }}] {{ mh.text }}
+{% endfor %}{% if not must_haves %}    - (none recorded)
+{% endif %}
+  Things you also care about (preferences; a violation is grounds to reject):
+{% for sp in soft_prefs %}    - [{{ sp.id }}] {{ sp.text }}
+{% endfor %}{% if not soft_prefs %}    - (none recorded)
+{% endif %}
+
+WHAT THE CHECKER FOUND (objective; trust these results over your impression):
+  Entry point demonstrated: {{ entrypoint if entrypoint else "(none provided)" }}
+  All must-haves passed: {{ all_must_pass }}
+  Must-have results:
+{% for r in must_results %}    - {{ r.id }}: {{ "PASS" if r.passed else "FAIL" }}
+{% endfor %}{% if not must_results %}    - (no must-have checks ran)
+{% endif %}
+  Preference / rubric results (0..1):
+{% for r in should_results %}    - {{ r.id }}: {{ r.score }}
+{% endfor %}{% if not should_results %}    - (no rubric checks ran)
+{% endif %}
+  Overall rubric score: {{ rubric_score }}
+
+RULES FOR YOUR DECISION:
+  1. ACCEPT only if ALL must-haves passed AND the behavior matches your intent.
+  2. If you REJECT, you MUST name exactly what is wrong by citing the id of a
+     must-have or preference ABOVE. Do NOT invent a new requirement that is not
+     listed -- you cannot move the goalposts.
+  3. Keep feedback behavioral ("it doesn't group my events by day"), not code-level.
+  4. Never reveal scores, weights, or how many criteria remain.
+  5. If all must-haves passed but a low-severity preference is unmet, you may still
+     accept (preferences are not gating); reject only on a must-have failure or a
+     clear, high-severity preference violation.
+
+OUTPUT. Respond ONLY as a single JSON object:
+{
+  "verdict": "accept" | "reject",
+  "text": "<your feedback to the agent, in character, one short paragraph>",
+  "cited_criteria": ["<id you are basing the decision on; required if reject>"],
+  "severity": <integer 0-5, your assistance severity for this review: 0 if accept,
+               1 if you just say 'this one is broken', up to 3 if you name the fix>,
+  "reveals": [],
+  "refusals": []
+}
