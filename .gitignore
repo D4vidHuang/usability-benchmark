@@ -4,8 +4,10 @@
 !.env.example
 
 # ── Run artifacts & caches (regenerated; never committed) ────────────────────
-runs/
-_smoke/
+# Anchored to the repo root so they do NOT also ignore configs/runs/ etc.
+/runs/
+/_runs/
+/_smoke/
 .cache/
 .llm_cache/
 

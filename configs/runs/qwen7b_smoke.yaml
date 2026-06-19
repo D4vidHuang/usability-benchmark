@@ -1,0 +1,70 @@
+# =============================================================================
+# qwen7b_smoke.yaml -- FIRST REAL baseline run on DAIC.
+#
+# A single open-weight model (Qwen2.5-7B-Instruct, served by vLLM on a GPU node)
+# plays BOTH the agent-under-test and the simulated-user oracle, against the
+# hermetic v0_smoke taskset. Everything is inline (the run loader only resolves
+# `agent:` from a path; `models:`/`oracle:` must be inline dicts), and both
+# clients resolve the vLLM endpoint from $VLLM_BASE_URL -- so this config runs
+# unchanged co-located (GPU serves + harness on the same node) or split-mode.
+#
+# Local inference bills $0; the real cap is GPU wall-time (SLURM --time) and the
+# per-episode turn/oracle-query ceilings below.
+# =============================================================================
+
+id: qwen7b-smoke
+taskset: tasks/curated/v0_smoke.jsonl
+repeats: 1
+seeds: [1]
+
+# --- Agent under test: Qwen2.5-7B-Instruct via vLLM (OpenAI-compatible) -------
+models:
+  - id: qwen2.5-7b-instruct
+    provider: openai                 # vLLM speaks the OpenAI API
+    model: Qwen/Qwen2.5-7B-Instruct  # MUST equal vLLM --served-model-name
+    base_url_env: VLLM_BASE_URL
+    api_key_env: VLLM_API_KEY
+    params:
+      temperature: 0.2
+      max_tokens: 1536
+      seed: 7
+    price_per_mtok: { input: 0.0, output: 0.0 }
+    retry: { max_attempts: 4, base_delay_s: 2.0, max_delay_s: 30.0 }
+    timeout_s: 180.0
+
+# --- Simulated-user oracle: same served model (self-contained, no API keys) ---
+oracle:
+  id: oracle-qwen7b
+  client:
+    provider: openai
+    model: Qwen/Qwen2.5-7B-Instruct
+    base_url_env: VLLM_BASE_URL
+    api_key_env: VLLM_API_KEY
+    params: { temperature: 0.3, max_tokens: 768 }
+    price_per_mtok: { input: 0.0, output: 0.0 }
+    retry: { max_attempts: 4, base_delay_s: 1.5, max_delay_s: 30.0 }
+    timeout_s: 120.0
+  temperature: 0.3
+  persona: non_expert_user
+  helpfulness: standard
+  hint_budget: 3
+  max_level: 4
+  proactive_stuck_help: true
+
+# --- Reference scaffold: ReAct TEXT protocol (no native tool-calling, so the
+#     vLLM server needs no tool-call parser flags) -----------------------------
+agent:
+  max_steps: 16
+  temperature: 0.2
+  native_tools: false
+
+# --- Per-episode budget (whichever ceiling trips first ends the episode) ------
+budget:
+  max_turns: 16
+  max_wall_s: 600.0
+  max_tokens: 300000
+  max_cost_usd: 5.0        # >0 so the gate never pre-empts; vLLM bills ~$0
+  max_oracle_queries: 8
+
+# Overridden by `usabench run --output-root` in the sbatch; plain path here.
+output_root: ./_runs/qwen7b_smoke

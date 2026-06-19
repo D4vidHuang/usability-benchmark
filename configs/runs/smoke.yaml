@@ -1,0 +1,61 @@
+# =============================================================================
+# smoke.yaml -- the zero-cost end-to-end smoke run.
+#
+# Exercises the WHOLE pipeline (schema -> harness -> interaction bus -> sandbox
+# -> acceptance -> scoring -> leaderboard) on a laptop in seconds with NO paid
+# API calls: both the agent and the oracle are backed by FakeLLMClient. This is
+# the gate the CI smoke job runs (docs/infra.md §6.5).
+#
+# Run with:  usabench run --config configs/runs/smoke.yaml --fake-llm --output-root ./_smoke/runs
+# =============================================================================
+
+id: smoke
+
+# Tiny curated taskset (2-3 trivial tasks) for the smoke path.
+taskset: tasks/curated/v0_smoke.jsonl
+
+# A single replica -- the smoke path validates wiring, not variance.
+repeats: 1
+seeds: [1]
+
+# --- Models under test: the deterministic FakeLLM (no provider, no cost) ------
+# A `provider: fake` ModelConfig with an inline scripted/keyed plan keeps the
+# smoke run hermetic and reproducible. `--fake-llm` on the CLI forces this even
+# if a real model file were referenced.
+models:
+  - id: fake-agent
+    provider: fake
+    model: fake-model
+    # `default` is the FakeLLMClient fallback completion when no keyed match hits.
+    # A `declare_done` keeps the smoke episode short and lets verification run.
+    default: "Action: declare_done\nAction Input: {\"summary\": \"smoke stub\", \"entrypoint\": \"main.py\"}"
+
+# --- Oracle: also fake, so the smoke run never touches an API -----------------
+oracle:
+  id: oracle-fake
+  client:
+    provider: fake
+    model: fake-oracle
+    default: "{\"level\": 0, \"text\": \"ok\", \"verdict\": \"accept\", \"cited_criteria\": []}"
+  temperature: 0.0
+  persona: non_expert_user
+  helpfulness: standard
+  hint_budget: 3
+  max_level: 4
+  proactive_stuck_help: false   # keep the smoke trace deterministic and short
+  stuck_offer_cooldown_turns: 20
+
+# --- Agent scaffold (reused; smaller step cap for speed) ----------------------
+agent: configs/agents/scaffold_default.yaml
+
+# --- Tiny per-episode budget (BudgetLimits). Small enough to fail fast if the
+# loop misbehaves, large enough for a trivial declare_done episode. ----------
+budget:
+  max_turns: 8
+  max_wall_s: 120.0
+  max_tokens: 20000
+  max_cost_usd: 0.0             # fake provider is free; any spend is a bug
+  max_oracle_queries: 5
+
+# Output root for run dirs. `${VAR:-default}` keeps the smoke run laptop-friendly.
+output_root: ${USABENCH_RUNS_ROOT:-./_smoke/runs}

@@ -1,0 +1,45 @@
+# =============================================================================
+# full_v1.yaml -- the real v1 measurement run plan.
+#
+# Every (task, model) is run `repeats` times with distinct seeds to characterize
+# LLM stochasticity (variance protocol, docs/infra.md §6.1; pass^k robustness,
+# docs/metrics.md §7.2). All three models-under-test are driven against the SAME
+# constant API oracle and the SAME scaffold so numbers are comparable.
+#
+# Split-mode note (FROZEN decision #7): the qwen_vllm model resolves its endpoint
+# from VLLM_BASE_URL, so this one plan runs unchanged whether the GPU node serves
+# vLLM co-located with the harness or the harness runs on the login/CPU node.
+# =============================================================================
+
+id: full-v1
+
+# The first real curated taskset.
+taskset: tasks/curated/v1.jsonl
+
+# Variance: 5 independent episodes per (task, model). `n_test: 5` in
+# usability_score.yaml is the matching default reruns-per-cell on the test split.
+repeats: 5
+seeds: [1, 2, 3, 4, 5]
+
+# --- All three models under test ---------------------------------------------
+models:
+  - configs/models/claude_opus.yaml
+  - configs/models/gpt_frontier.yaml
+  - configs/models/qwen_vllm.yaml
+
+# --- Constant API oracle + reference scaffold --------------------------------
+oracle: configs/oracle/oracle_default.yaml
+agent: configs/agents/scaffold_default.yaml
+
+# --- Full per-episode budget (BudgetLimits, docs/protocol.md §1.3) -----------
+# Five ceilings; whichever trips first terminates the episode (it still scores,
+# marked truncated). vLLM-served models bill $0 -> their real cap is GPU wall-time.
+budget:
+  max_turns: 80
+  max_wall_s: 1800.0
+  max_tokens: 400000
+  max_cost_usd: 3.0
+  max_oracle_queries: 25
+
+# Output root. On DAIC this is set to project storage; locally it falls back.
+output_root: ${USABENCH_RUNS_ROOT:-./_runs/v1}
