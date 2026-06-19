@@ -1,0 +1,56 @@
+# =============================================================================
+# qwen32b_smoke.yaml -- stronger baseline: Qwen2.5-32B-Instruct (vLLM) as agent
+# + oracle, on the v0_smoke taskset. Identical to qwen7b_smoke.yaml except the
+# served model (the 32B is cached in HF_HOME and fits a single 96 GB GPU).
+# =============================================================================
+
+id: qwen32b-smoke
+taskset: tasks/curated/v0_smoke.jsonl
+repeats: 1
+seeds: [1]
+
+models:
+  - id: qwen2.5-32b-instruct
+    provider: openai
+    model: Qwen/Qwen2.5-32B-Instruct   # MUST equal vLLM --served-model-name
+    base_url_env: VLLM_BASE_URL
+    api_key: "EMPTY"                    # vLLM keyless; client just needs a non-empty key
+    params:
+      temperature: 0.2
+      max_tokens: 1536
+      seed: 7
+    price_per_mtok: { input: 0.0, output: 0.0 }
+    retry: { max_attempts: 4, base_delay_s: 2.0, max_delay_s: 30.0 }
+    timeout_s: 240.0
+
+oracle:
+  id: oracle-qwen32b
+  client:
+    provider: openai
+    model: Qwen/Qwen2.5-32B-Instruct
+    base_url_env: VLLM_BASE_URL
+    api_key: "EMPTY"
+    params: { temperature: 0.3, max_tokens: 768 }
+    price_per_mtok: { input: 0.0, output: 0.0 }
+    retry: { max_attempts: 4, base_delay_s: 1.5, max_delay_s: 30.0 }
+    timeout_s: 180.0
+  temperature: 0.3
+  persona: non_expert_user
+  helpfulness: standard
+  hint_budget: 3
+  max_level: 4
+  proactive_stuck_help: true
+
+agent:
+  max_steps: 16
+  temperature: 0.2
+  native_tools: false
+
+budget:
+  max_turns: 16
+  max_wall_s: 900.0
+  max_tokens: 300000
+  max_cost_usd: 5.0
+  max_oracle_queries: 8
+
+output_root: ./_runs/qwen32b_smoke

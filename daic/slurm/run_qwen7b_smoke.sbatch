@@ -29,8 +29,11 @@ export TRANSFORMERS_OFFLINE=1
 # carries an inline dummy api_key ("EMPTY") which a keyless server ignores.
 PORT=8765
 export VLLM_BASE_URL="http://127.0.0.1:${PORT}/v1"
-RUNS_ROOT="$PROJ/runs/qwen7b_smoke"
-MODEL="Qwen/Qwen2.5-7B-Instruct"
+# Parameterizable so the same script serves any cached model: override via
+#   sbatch --export=ALL,UB_MODEL=...,UB_RUN_CONFIG=...,UB_RUNS_SUBDIR=...
+MODEL="${UB_MODEL:-Qwen/Qwen2.5-7B-Instruct}"
+RUN_CONFIG="${UB_RUN_CONFIG:-configs/runs/qwen7b_smoke.yaml}"
+RUNS_ROOT="$PROJ/runs/${UB_RUNS_SUBDIR:-qwen7b_smoke}"
 TASKSET="tasks/curated/v0_smoke.jsonl"
 
 mkdir -p "$RUNS_ROOT"
@@ -71,7 +74,7 @@ done
 usabench serve-check --base-url "$VLLM_BASE_URL" --model "$MODEL" || true
 
 echo "[run] running episodes ..."
-usabench run --config configs/runs/qwen7b_smoke.yaml --output-root "$RUNS_ROOT/runs" --no-resume
+usabench run --config "$RUN_CONFIG" --output-root "$RUNS_ROOT/runs" --no-resume
 
 echo "[score] scoring ..."
 usabench score --runs "$RUNS_ROOT/runs" --tasks "$TASKSET" --scores "$RUNS_ROOT/scores"
