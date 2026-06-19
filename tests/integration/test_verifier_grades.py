@@ -74,6 +74,23 @@ def test_wrong_artifact_is_rejected(wordfreq_task: Task) -> None:
     assert vrun.rubric_score < 1.0
 
 
+def test_freely_named_artifact_is_resolved(wordfreq_task: Task) -> None:
+    """The agent may name its tool freely and declare a command-string entrypoint.
+
+    Open-ended tasks do not dictate a filename; a capable agent writes e.g.
+    ``word_freq.py`` and declares ``python word_freq.py <file>``. The verifier must
+    still find and grade it (regression for the entrypoint-resolution fix).
+    """
+    verifier = FunctionalVerifier(_TASKS_ROOT)
+    with LocalSubprocessSandbox(task_id=wordfreq_task.id) as sandbox:
+        sandbox.write("word_freq.py", SMOKE_SOLUTIONS["word frequency"])
+        vrun = verifier.verify(
+            wordfreq_task, sandbox, trigger="submit", entrypoint="python word_freq.py <file>"
+        )
+    assert vrun.all_must_pass is True
+    assert vrun.rubric_score == pytest.approx(1.0)
+
+
 def test_missing_artifact_is_rejected(wordfreq_task: Task) -> None:
     """Declaring done without writing the entrypoint fails every criterion."""
     verifier = FunctionalVerifier(_TASKS_ROOT)

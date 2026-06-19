@@ -31,6 +31,7 @@ supplies only per-criterion pass/score, never the gold weighting.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -50,6 +51,11 @@ _log = get_logger(__name__)
 _DEFAULT_ENTRYPOINT = "main.py"
 #: Wall-clock cap on the grader subprocess (seconds).
 _GRADER_TIMEOUT_S = 90
+#: Extracts a ``*.py`` path token from a declared entrypoint, which agents often
+#: phrase as a whole command ("python word_freq.py <file>") rather than a filename.
+_PY_TOKEN_RE = re.compile(r"[\w./-]+\.py\b")
+#: Workspace dirs that never hold the agent's deliverable.
+_IGNORE_DIR_PARTS = {"__pycache__", ".git", "grader", ".venv", "node_modules"}
 
 
 class FunctionalVerifier:
@@ -97,19 +103,20 @@ class FunctionalVerifier:
             criteria evaluated" rather than crashing the episode.
         """
         trig = "forced_final" if trigger == "forced_final" else "submit"
-        artifact_name = entrypoint or _DEFAULT_ENTRYPOINT
+        workspace = Path(sandbox.workspace)
         grader = self._grader_path(task)
+        artifact = self._resolve_artifact(workspace, entrypoint)
+        artifact_name = artifact.name if artifact is not None else (entrypoint or _DEFAULT_ENTRYPOINT)
 
         if grader is None or not grader.is_file():
             _log.info("verifier.no_grader", task_id=task.id, tasks_root=str(self.tasks_root))
             return self._deferred_run(task, trig, artifact_name)
 
-        artifact = Path(sandbox.workspace) / artifact_name
-        if not artifact.is_file():
-            # The agent never wrote the entrypoint: every functional criterion fails.
-            return self._failed_run(task, trig, artifact_name, detail="artifact not found")
+        if artifact is None:
+            # The agent never wrote a runnable Python artifact: every criterion fails.
+            return self._failed_run(task, trig, artifact_name, detail="no python artifact found")
 
-        report, wall_ms = self._run_grader(grader, artifact, cwd=Path(sandbox.workspace))
+        report, wall_ms = self._run_grader(grader, artifact, cwd=workspace)
         if report is None:
             # Grader itself failed (nonzero exit / unparseable). Treat as a reject.
             return self._failed_run(task, trig, artifact_name, detail="grader failed to run")
@@ -127,6 +134,52 @@ class FunctionalVerifier:
         """
         candidate = self.tasks_root / task.id / "grader" / "grade.py"
         return candidate.resolve() if candidate.is_file() else None
+
+    def _resolve_artifact(self, workspace: Path, entrypoint: str | None) -> Path | None:
+        """Resolve the agent's deliverable Python file inside the workspace.
+
+        Open-ended tasks do not dictate a filename, so agents name their tool
+        freely ("word_freq.py") and often declare the entrypoint as a whole command
+        ("python word_freq.py <file>"). We therefore resolve in order:
+
+        1. any ``*.py`` token parsed out of the declared ``entrypoint`` that exists;
+        2. the conventional ``main.py``;
+        3. discovery -- the single ``*.py`` the agent wrote (excluding fixtures /
+           caches / the grader); with several, prefer one whose stem appears in the
+           declared entrypoint, else the largest.
+
+        Returns the absolute path (guaranteed under ``workspace``) or ``None``.
+        """
+        root = workspace.resolve()
+
+        def _under(name: str) -> Path | None:
+            cand = (root / name.lstrip("./")).resolve()
+            try:
+                cand.relative_to(root)
+            except ValueError:
+                return None
+            return cand if cand.is_file() else None
+
+        named: list[str] = list(_PY_TOKEN_RE.findall(entrypoint)) if entrypoint else []
+        for name in [*named, _DEFAULT_ENTRYPOINT]:
+            hit = _under(name)
+            if hit is not None:
+                return hit
+
+        discovered = sorted(
+            p.resolve()
+            for p in root.rglob("*.py")
+            if p.is_file() and not (_IGNORE_DIR_PARTS & set(p.parts))
+        )
+        if not discovered:
+            return None
+        if len(discovered) == 1:
+            return discovered[0]
+        if entrypoint:
+            for p in discovered:
+                if p.stem and p.stem in entrypoint:
+                    return p
+        return max(discovered, key=lambda p: p.stat().st_size)
 
     def _run_grader(
         self, grader: Path, artifact: Path, *, cwd: Path
