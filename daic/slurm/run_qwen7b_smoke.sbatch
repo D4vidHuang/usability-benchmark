@@ -62,6 +62,7 @@ python -m vllm.entrypoints.openai.api_server \
   --max-model-len 16384 \
   --gpu-memory-utilization 0.90 \
   --dtype bfloat16 \
+  ${UB_VLLM_EXTRA:-} \
   > "$RUNS_ROOT/vllm-serve.log" 2>&1 &
 VLLM_PID=$!
 
