@@ -24,6 +24,16 @@ export PATH="$HOME/.local/bin:$PATH"
 export HF_HOME=/tudelft.net/staff-umbrella/CoReFusion/hf_cache
 export HF_HUB_OFFLINE=1            # use the cached model; never hit the network
 export TRANSFORMERS_OFFLINE=1
+# Redirect ALL compile/runtime caches off the quota-limited home (~) onto project
+# storage -- vLLM/torch.compile/inductor/triton caches otherwise fill ~ and crash
+# the engine with "Disk quota exceeded".
+_CACHE=/tudelft.net/staff-umbrella/CoReFusion/cache
+export XDG_CACHE_HOME="$_CACHE"
+export VLLM_CACHE_ROOT="$_CACHE/vllm"
+export TORCHINDUCTOR_CACHE_DIR="$_CACHE/inductor"
+export TRITON_CACHE_DIR="$_CACHE/triton"
+export TMPDIR="$_CACHE/tmp"
+mkdir -p "$VLLM_CACHE_ROOT" "$TORCHINDUCTOR_CACHE_DIR" "$TRITON_CACHE_DIR" "$TMPDIR"
 # Run vLLM KEYLESS: do NOT export VLLM_API_KEY (if set, vLLM *requires* that bearer
 # token and the keyless health-check curl below would 401). The harness client
 # carries an inline dummy api_key ("EMPTY") which a keyless server ignores.
