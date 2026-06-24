@@ -32,7 +32,7 @@ openai>=1.40
 # [collect] — GitHub ETL. datasketch is imported LAZILY (try/except); the package
 # imports without it.
 # ─────────────────────────────────────────────────────────────────────────────
-gql>=3.5,<4
+gql>=3.5,<5
 python-dateutil>=2.9
 datasketch>=1.6
 
